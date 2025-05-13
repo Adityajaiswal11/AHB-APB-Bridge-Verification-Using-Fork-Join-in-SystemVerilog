@@ -1,0 +1,115 @@
+
+module fj_tb;
+  
+  // Testbench Signals
+  logic ahb_clk;
+  logic ahb_reset_n;
+  logic [31:0] ahb_addr;
+  logic [31:0] ahb_wdata;
+  logic ahb_write;
+  logic [31:0] apb_rdata;
+  logic apb_ready;
+
+  // DUT Instantiation
+  fj dut (
+    .ahb_clk(ahb_clk),
+    .ahb_reset_n(ahb_reset_n),
+    .ahb_addr(ahb_addr),
+    .ahb_wdata(ahb_wdata),
+    .ahb_write(ahb_write),
+    .apb_rdata(apb_rdata),
+    .apb_ready(apb_ready)
+  );
+
+  // Clock Generator (10ns period)
+  always #5 ahb_clk = ~ahb_clk;
+
+  // AHB Master Write Task - Corrected waiting mechanism
+  task automatic ahb_master_write(input logic [31:0] addr, input logic [31:0] data);
+    @(posedge ahb_clk);
+    ahb_addr = addr;
+    ahb_wdata = data;
+    ahb_write = 1;
+    $display("[%0t] AHB Master: Writing %0h to Address %0h", $time, data, addr);
+    
+    // Wait for `apb_ready` assertion
+    @(posedge apb_ready);
+    @(posedge ahb_clk);
+    ahb_write = 0; // De-assert write after one clock cycle
+    @(posedge ahb_clk);
+  endtask
+
+  // APB Slave Read Task - Corrected waiting mechanism
+  task automatic apb_slave_read(input logic [31:0] addr);
+    @(posedge ahb_clk);
+    ahb_addr = addr;
+    ahb_write = 0;
+    $display("[%0t] APB Slave: Read Request at Address %0h", $time, addr);
+    
+    // Wait for `apb_ready` assertion
+    @(posedge apb_ready);
+    @(posedge ahb_clk);
+    $display("[%0t] APB Slave: Read Data from Address %0h: %0h", $time, addr, apb_rdata);
+
+    // Ensure `apb_ready` is de-asserted before next transaction
+    @(posedge ahb_clk);
+  endtask
+
+  // Continuous Bus Monitoring with Limited Cycles
+  task automatic bus_monitor();
+    repeat (10) begin
+      @(posedge ahb_clk);
+      $display("[%0t] Bus Monitor: Observing Transactions...", $time);
+      $display("[%0t] Bus Status: addr=%0h, write=%0b, ready=%0b, data=%0h", 
+               $time, ahb_addr, ahb_write, apb_ready, ahb_write ? ahb_wdata : apb_rdata);
+    end
+  endtask
+
+  // Test Scenario
+  initial begin
+    // Initialize Signals
+    ahb_clk = 0;
+    ahb_reset_n = 0;
+    ahb_addr = 0;
+    ahb_wdata = 0;
+    ahb_write = 0;
+    
+    // Apply reset for a few clock cycles
+    repeat(3) @(posedge ahb_clk);
+    ahb_reset_n = 1; // Release Reset
+    @(posedge ahb_clk);
+    $display("[%0t] Starting AHB-APB Bridge Verification", $time);
+
+    // Sequential transactions - controlled execution
+    ahb_master_write(32'h10, 32'hA5A5A5A5);
+    $display("[%0t] Write to address 0x10 completed", $time);
+    
+    // Add some delay before reading from the same address
+    repeat(2) @(posedge ahb_clk);
+    
+    apb_slave_read(32'h10);
+    $display("[%0t] Read from address 0x10 completed", $time);
+
+    // Test another address
+    ahb_master_write(32'h20, 32'h5A5A5A5A);
+    $display("[%0t] Write to address 0x20 completed", $time);
+    
+    // Add some delay before reading
+    repeat(2) @(posedge ahb_clk);
+    
+    apb_slave_read(32'h20);
+    $display("[%0t] Read from address 0x20 completed", $time);
+
+    // Now start the bus monitor
+    fork
+      bus_monitor();
+    join_none
+    $display("[%0t] Bus Monitor Running in Background", $time);
+
+    // Allow time for monitoring
+    repeat(15) @(posedge ahb_clk);
+    $display("[%0t] AHB-APB Bridge Test Completed", $time);
+    $stop;
+  end
+
+endmodule

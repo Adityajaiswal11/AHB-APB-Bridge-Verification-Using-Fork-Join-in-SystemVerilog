@@ -1,0 +1,30 @@
+
+module fj (
+    input logic ahb_clk,
+    input logic ahb_reset_n,
+    input logic [31:0] ahb_addr,
+    input logic [31:0] ahb_wdata,
+    input logic ahb_write,
+    output logic [31:0] apb_rdata,
+    output logic apb_ready
+);
+
+  logic [31:0] apb_mem [0:255]; // APB memory storage
+
+  always_ff @(posedge ahb_clk or negedge ahb_reset_n) begin
+    if (!ahb_reset_n) begin
+      apb_ready <= 0;
+      apb_rdata <= 32'b0; // Ensure no undefined values
+    end else begin
+      apb_ready <= 0; // De-assert `apb_ready` before new transaction
+
+      if (ahb_write) begin
+        apb_mem[ahb_addr[7:0] & 8'hFF] <= ahb_wdata; // ? Write to APB memory (with masking)
+        apb_ready <= 1;
+      end else begin
+        apb_rdata <= apb_mem[ahb_addr[7:0] & 8'hFF]; // ? Read from APB memory (with masking)
+        apb_ready <= 1;
+      end
+    end
+  end
+endmodule
