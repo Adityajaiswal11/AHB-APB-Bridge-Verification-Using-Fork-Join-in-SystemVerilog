@@ -69,19 +69,3 @@ Concurrency Safety via fork-join observation.
 Reset Behavior validation.
 Bus Timing Alignment with clock.
 
-📦 How to Run
-Clone the repository:
-bash
-Copy
-Edit
-git clone https://github.com/yourusername/AHB-APB-Bridge-Verification-Using-SystemVerilog-Fork-Join.git
-Open fj_tb.v in your simulator of choice.
-
-Compile and run the simulation:
-bash
-Copy
-Edit
-vlog fj.v fj_tb.v
-vsim fj_tb
-run -all
-(Optional) View waveforms with GTKWave or simulator GUI.
